@@ -1,0 +1,12 @@
+# Carpetas de compilación temporales
+bin/
+obj/
+
+# Archivos de configuración de usuario de Visual Studio
+.vs/
+*.user
+
+# Modelos pesados de IA (Evita el límite de 100MB de GitHub)
+models/
+*.bin
+*.gguf
