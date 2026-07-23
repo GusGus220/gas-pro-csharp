@@ -60,6 +60,64 @@ namespace GasPro.Core
                     _speechService.SpeakAsync("Abriendo el navegador.");
                     _windowsService.OpenApplication("https://www.google.com"); // Esto fuerza abrir tu navegador default
                 }
+                // 4. DAR LA HORA EXACTA
+                else if (comando.Contains("hora") || comando.Contains("qué hora es"))
+                {
+                    esComandoDeSistema = true;
+                    // Formateamos la hora en un español natural (ej. "3:45 PM")
+                    string horaFormateada = DateTime.Now.ToString("h:mm tt", new System.Globalization.CultureInfo("es-ES"))
+                        .Replace("AM", "de la mañana")
+                        .Replace("PM", "de la tarde");
+
+                    string mensajeHora = $"Son las {horaFormateada}";
+                    Console.WriteLine($"GAS PRO: {mensajeHora}");
+                    _speechService.SpeakAsync(mensajeHora);
+                }
+                // 5. DAR LA FECHA Y DÍA ACTUAL
+                else if (comando.Contains("fecha") || comando.Contains("día es hoy") || comando.Contains("dia es hoy"))
+                {
+                    esComandoDeSistema = true;
+                    var culture = new System.Globalization.CultureInfo("es-ES");
+                    // Formato: "miércoles, 22 de julio de 2026"
+                    string fechaFormateada = DateTime.Now.ToString("dddd, d 'de' MMMM 'de' yyyy", culture);
+
+                    string mensajeFecha = $"Hoy es {fechaFormateada}";
+                    Console.WriteLine($"GAS PRO: {mensajeFecha}");
+                    _speechService.SpeakAsync(mensajeFecha);
+                }
+
+                // HAZ UN CLIC
+                else if (comando.Contains("haz clic") || comando.Contains("haz click"))
+                {
+                    _speechService.SpeakAsync("Clic hecho.");
+                    _windowsService.LeftClick();
+                }
+                // MOVER EL MOUSE A UNA POSICIÓN ESPECÍFICA (Ej: Coordenadas X, Y en tu pantalla)
+                else if (comando.Contains("mueve el mouse a"))
+                {
+                    // Aquí podrías parsear números, por ahora un ejemplo fijo o dinámico
+                    _speechService.SpeakAsync("Moviendo el cursor.");
+                    _windowsService.MoveMouse(500, 500); // Mueve el cursor al centro de una pantalla 1080p típica
+                }
+
+                // BUSCAR Y REPRODUCIR EN SPOTIFY
+                else if (comando.Contains("pon la canción") || comando.Contains("pon la cancion") || comando.Contains("busca en spotify") || comando.Contains("reproduce a"))
+                {
+                    // Limpiamos la frase para quedarnos con el nombre puro de la canción/artista
+                    string cancion = comando
+                        .Replace("pon la canción", "")
+                        .Replace("pon la cancion", "")
+                        .Replace("busca en spotify", "")
+                        .Replace("reproduce a", "")
+                        .Replace("gas", "")
+                        .Trim();
+
+                    _speechService.SpeakAsync($"Buscando {cancion} en Spotify.");
+
+                    // Lanzamos el hackeo en segundo plano con "Task.Run" para que tu IA no se congele 
+                    // esperando los 3 segundos que tarda Spotify en abrir.
+                    _ = Task.Run(() => _windowsService.SearchAndPlaySpotifyAsync(cancion));
+                }
                 // 2. MULTIMEDIA
                 else if (comando.Contains("pausa") || comando.Contains("reanuda") || comando.Contains("reproduce"))
                 {

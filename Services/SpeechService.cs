@@ -11,7 +11,7 @@ namespace GasPro.Services
         {
             _synthesizer = new SpeechSynthesizer();
             _synthesizer.SetOutputToDefaultAudioDevice();
-            _synthesizer.Rate = 2; // La misma velocidad que configuraste
+            _synthesizer.Rate = 3; 
         }
 
         public void SpeakAsync(string text)
