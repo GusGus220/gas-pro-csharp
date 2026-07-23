@@ -1,15 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using GasPro.Services;
 
 namespace GasPro.Core
 {
-    // Estructura interna de mensaje para la memoria de corto plazo
+    // Estructura interna para la memoria de la conversación
     public class LocalChatMessage
     {
         public string Role { get; set; }
@@ -37,10 +33,13 @@ namespace GasPro.Core
 
         public void Initialize(string llamaModelPath, string voskModelPath)
         {
-            Console.WriteLine("Iniciando entorno GAS PRO (C# Core unificado)...");
+            Console.WriteLine("Iniciando entorno GAS PRO (C# Core con PiperSharp Oficial)...");
 
             _llamaService.Initialize(llamaModelPath);
-            _speechService.InitializeAsync("es_ES-mls-medium.onnx", "models/piper").GetAwaiter().GetResult();
+
+            // Usamos la voz sharvard de España (puedes cambiarla luego por otra si quieres)
+            _speechService.InitializeAsync("es_ES-sharvard-medium", "models/piper").GetAwaiter().GetResult();
+
             _audioService.Initialize(voskModelPath);
 
             Console.WriteLine("\n[SISTEMA LISTO] Habla con naturalidad de corrido (ej. 'Gas, ¿qué hora es?').");
@@ -58,7 +57,7 @@ namespace GasPro.Core
 
                 if (promptExtraido.Contains("salir") || promptExtraido.Contains("apágate")) break;
 
-                // ---- 🚨 RUTA DE REFLEJOS (FAST-PATH) ----
+                // ---- 🚨 RUTA DE REFLEJOS ----
                 bool esComandoDeSistema = true;
                 string comando = promptExtraido.ToLower();
 
@@ -172,27 +171,30 @@ namespace GasPro.Core
                 string respuestaCompleta = "";
                 string bufferOracion = "";
 
+                // 3. Pensar y Hablar en Streaming Inteligente (Puntuación)
                 await foreach (var text in _llamaService.GenerateResponseStreamAsync(promptFinal))
                 {
                     Console.Write(text);
                     bufferOracion += text;
                     respuestaCompleta += text;
 
-                    if (text.Contains(' ') || text.Contains('.') || text.Contains(',') || text.Contains('?') || text.Contains('!'))
+                    if (text.Contains('.') || text.Contains(',') || text.Contains('?') || text.Contains('!') || text.Contains('\n'))
                     {
                         if (!string.IsNullOrWhiteSpace(bufferOracion))
                         {
                             _speechService.SpeakAsync(bufferOracion);
-                            bufferOracion = "";
+                            bufferOracion = ""; // Resetea para la siguiente oración
                         }
                     }
                 }
 
+                // Reproduce lo que haya quedado al final
                 if (!string.IsNullOrWhiteSpace(bufferOracion))
                 {
                     _speechService.SpeakAsync(bufferOracion);
                 }
 
+                // Guardar en la memoria
                 _chatHistory.Add(new LocalChatMessage { Role = "user", Content = promptExtraido });
                 _chatHistory.Add(new LocalChatMessage { Role = "assistant", Content = respuestaCompleta.Trim() });
 
