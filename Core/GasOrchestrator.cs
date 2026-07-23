@@ -1,30 +1,46 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using GasPro.Services;
 
 namespace GasPro.Core
 {
+    // Estructura interna de mensaje para la memoria de corto plazo
+    public class LocalChatMessage
+    {
+        public string Role { get; set; }
+        public string Content { get; set; }
+    }
+
     public class GasOrchestrator
     {
         private readonly LlamaService _llamaService;
-        private readonly SpeechService _speechService;
+        private readonly PiperSpeechService _speechService;
         private readonly AudioService _audioService;
         private readonly WindowsControlService _windowsService;
+
+        private readonly List<LocalChatMessage> _chatHistory;
+        private const int MaxHistorySize = 2;
 
         public GasOrchestrator()
         {
             _llamaService = new LlamaService();
-            _speechService = new SpeechService();
+            _speechService = new PiperSpeechService();
             _audioService = new AudioService();
             _windowsService = new WindowsControlService();
+            _chatHistory = new List<LocalChatMessage>();
         }
 
         public void Initialize(string llamaModelPath, string voskModelPath)
         {
-            Console.WriteLine("Iniciando entorno GasAI (C# Core con motor Vosk)...");
+            Console.WriteLine("Iniciando entorno GAS PRO (C# Core unificado)...");
 
             _llamaService.Initialize(llamaModelPath);
-            _speechService.Initialize();
+            _speechService.InitializeAsync("es_ES-mls-medium.onnx", "models/piper").GetAwaiter().GetResult();
             _audioService.Initialize(voskModelPath);
 
             Console.WriteLine("\n[SISTEMA LISTO] Habla con naturalidad de corrido (ej. 'Gas, ¿qué hora es?').");
@@ -32,112 +48,70 @@ namespace GasPro.Core
 
         public async Task RunAsync()
         {
-            bool esPrimerMensaje = true;
-
             while (true)
             {
                 Console.Write("\r💤 Escuchando en segundo plano...           ");
 
-                // 1. Escuchar
                 string promptExtraido = await _audioService.ListenForPromptAsync();
 
                 Console.WriteLine($"\n🔔 ¡Activado! Usuario: {promptExtraido}");
 
                 if (promptExtraido.Contains("salir") || promptExtraido.Contains("apágate")) break;
 
-                // ---- 🚨 RUTA DE REFLEJOS (FAST-PATH MEJORADA) ----
+                // ---- 🚨 RUTA DE REFLEJOS (FAST-PATH) ----
                 bool esComandoDeSistema = true;
                 string comando = promptExtraido.ToLower();
 
-                // 1. ABRIR APLICACIONES (Usando protocolos de Windows)
                 if (comando.Contains("spotify"))
                 {
                     _speechService.SpeakAsync("Abriendo Spotify.");
-                    _windowsService.OpenApplication("spotify:"); // Los dos puntos son la clave mágica
+                    _windowsService.OpenApplication("spotify:");
                 }
                 else if (comando.Contains("chrome") || comando.Contains("google") || comando.Contains("navegador"))
                 {
                     _speechService.SpeakAsync("Abriendo el navegador.");
-                    _windowsService.OpenApplication("https://www.google.com"); // Esto fuerza abrir tu navegador default
+                    _windowsService.OpenApplication("https://www.google.com");
                 }
-                // 4. DAR LA HORA EXACTA
+                else if (comando.Contains("abre discord"))
+                {
+                    _speechService.SpeakAsync("Abriendo Discord.");
+                    _ = Task.Run(() => _windowsService.OpenAppBySearch("discord"));
+                }
                 else if (comando.Contains("hora") || comando.Contains("qué hora es"))
                 {
-                    esComandoDeSistema = true;
-                    // Formateamos la hora en un español natural (ej. "3:45 PM")
                     string horaFormateada = DateTime.Now.ToString("h:mm tt", new System.Globalization.CultureInfo("es-ES"))
-                        .Replace("AM", "de la mañana")
-                        .Replace("PM", "de la tarde");
-
+                        .Replace("AM", "de la mañana").Replace("PM", "de la tarde");
                     string mensajeHora = $"Son las {horaFormateada}";
                     Console.WriteLine($"GAS PRO: {mensajeHora}");
                     _speechService.SpeakAsync(mensajeHora);
                 }
-                // 5. DAR LA FECHA Y DÍA ACTUAL
                 else if (comando.Contains("fecha") || comando.Contains("día es hoy") || comando.Contains("dia es hoy"))
                 {
-                    esComandoDeSistema = true;
-                    var culture = new System.Globalization.CultureInfo("es-ES");
-                    // Formato: "miércoles, 22 de julio de 2026"
-                    string fechaFormateada = DateTime.Now.ToString("dddd, d 'de' MMMM 'de' yyyy", culture);
-
+                    string fechaFormateada = DateTime.Now.ToString("dddd, d 'de' MMMM 'de' yyyy", new System.Globalization.CultureInfo("es-ES"));
                     string mensajeFecha = $"Hoy es {fechaFormateada}";
                     Console.WriteLine($"GAS PRO: {mensajeFecha}");
                     _speechService.SpeakAsync(mensajeFecha);
                 }
-
-                // HAZ UN CLIC
                 else if (comando.Contains("haz clic") || comando.Contains("haz click"))
                 {
                     _speechService.SpeakAsync("Clic hecho.");
                     _windowsService.LeftClick();
                 }
-                // MOVER EL MOUSE A UNA POSICIÓN ESPECÍFICA (Ej: Coordenadas X, Y en tu pantalla)
-                else if (comando.Contains("mueve el mouse a"))
-                {
-                    // Aquí podrías parsear números, por ahora un ejemplo fijo o dinámico
-                    _speechService.SpeakAsync("Moviendo el cursor.");
-                    _windowsService.MoveMouse(500, 500); // Mueve el cursor al centro de una pantalla 1080p típica
-                }
-
-                // BUSCAR Y REPRODUCIR EN SPOTIFY
-                else if (comando.Contains("pon la canción") || comando.Contains("pon la cancion") || comando.Contains("busca en spotify") || comando.Contains("reproduce a"))
-                {
-                    // Limpiamos la frase para quedarnos con el nombre puro de la canción/artista
-                    string cancion = comando
-                        .Replace("pon la canción", "")
-                        .Replace("pon la cancion", "")
-                        .Replace("busca en spotify", "")
-                        .Replace("reproduce a", "")
-                        .Replace("gas", "")
-                        .Trim();
-
-                    _speechService.SpeakAsync($"Buscando {cancion} en Spotify.");
-
-                    // Lanzamos el hackeo en segundo plano con "Task.Run" para que tu IA no se congele 
-                    // esperando los 3 segundos que tarda Spotify en abrir.
-                    _ = Task.Run(() => _windowsService.SearchAndPlaySpotifyAsync(cancion));
-                }
-                // 2. MULTIMEDIA
                 else if (comando.Contains("pausa") || comando.Contains("reanuda") || comando.Contains("reproduce"))
                 {
                     _speechService.SpeakAsync("Hecho.");
                     _windowsService.PlayPauseMusic();
                 }
-                // 3. CONTROL DE VOLUMEN INTELIGENTE
                 else if (comando.Contains("volumen"))
                 {
-                    esComandoDeSistema = true;
                     int targetVolume = -1;
                     string[] palabras = comando.Split(' ');
 
-                    // Buscamos si dijiste un porcentaje exacto
                     foreach (var palabra in palabras)
                     {
                         string numStr = palabra.Replace("%", "").Trim();
                         if (int.TryParse(numStr, out int num)) { targetVolume = num; break; }
 
-                        // Diccionario casero por si Vosk lo escribe con letras
                         if (numStr == "cero") targetVolume = 0;
                         else if (numStr == "diez") targetVolume = 10;
                         else if (numStr == "veinte") targetVolume = 20;
@@ -159,15 +133,14 @@ namespace GasPro.Core
                     else if (comando.Contains("baj") || comando.Contains("disminu"))
                     {
                         _speechService.SpeakAsync("Bajando el volumen.");
-                        _windowsService.ChangeVolumeBy(-20); // Baja 20% de golpe
+                        _windowsService.ChangeVolumeBy(-20);
                     }
                     else if (comando.Contains("sub") || comando.Contains("aument"))
                     {
                         _speechService.SpeakAsync("Subiendo el volumen.");
-                        _windowsService.ChangeVolumeBy(20); // Sube 20% de golpe
+                        _windowsService.ChangeVolumeBy(20);
                     }
                 }
-                // SI NO ES NINGUNO DE ARRIBA, PASA A LLAMA 3
                 else
                 {
                     esComandoDeSistema = false;
@@ -180,30 +153,32 @@ namespace GasPro.Core
                 }
                 // ------------------------------------------------
 
-                // 2. Preparar el Prompt para Llama 3
+                // --- CONSTRUCCIÓN DEL PROMPT CON MEMORIA ---
                 Console.Write("GAS PRO: ");
-                string promptFinal = "";
 
-                if (esPrimerMensaje)
+                string systemPrompt = "<|start_header_id|>system<|end_header_id|>\n\nEres GAS PRO, asistente de IA avanzado. Ubicación: Piura, Perú. Respuestas concisas, precisas y basadas en hechos.<|eot_id|>";
+                string promptFinal = systemPrompt;
+
+                foreach (var msg in _chatHistory)
                 {
-                    string systemPrompt = "<|start_header_id|>system<|end_header_id|>\n\nEres GAS PRO, asistente de IA. Ubicación: Piura, Perú. Responde con hechos comprobables. Cero alucinaciones. Respuestas concisas.<|eot_id|>";
-                    promptFinal = systemPrompt + $"<|start_header_id|>user<|end_header_id|>\n\n{promptExtraido}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n";
-                    esPrimerMensaje = false;
-                }
-                else
-                {
-                    promptFinal = $"<|start_header_id|>user<|end_header_id|>\n\n{promptExtraido}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n";
+                    if (msg.Role == "user")
+                        promptFinal += $"<|start_header_id|>user<|end_header_id|>\n\n{msg.Content}<|eot_id|>";
+                    else
+                        promptFinal += $"<|start_header_id|>assistant<|end_header_id|>\n\n{msg.Content}<|eot_id|>";
                 }
 
-                // 3. Pensar y Hablar en Streaming
+                promptFinal += $"<|start_header_id|>user<|end_header_id|>\n\n{promptExtraido}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n";
+
+                string respuestaCompleta = "";
                 string bufferOracion = "";
 
                 await foreach (var text in _llamaService.GenerateResponseStreamAsync(promptFinal))
                 {
                     Console.Write(text);
                     bufferOracion += text;
+                    respuestaCompleta += text;
 
-                    if (text.Contains('.') || text.Contains('?') || text.Contains('!') || text.Contains('\n'))
+                    if (text.Contains(' ') || text.Contains('.') || text.Contains(',') || text.Contains('?') || text.Contains('!'))
                     {
                         if (!string.IsNullOrWhiteSpace(bufferOracion))
                         {
@@ -218,7 +193,14 @@ namespace GasPro.Core
                     _speechService.SpeakAsync(bufferOracion);
                 }
 
-                // 4. Candado anti-eco
+                _chatHistory.Add(new LocalChatMessage { Role = "user", Content = promptExtraido });
+                _chatHistory.Add(new LocalChatMessage { Role = "assistant", Content = respuestaCompleta.Trim() });
+
+                while (_chatHistory.Count > MaxHistorySize)
+                {
+                    _chatHistory.RemoveAt(0);
+                }
+
                 _speechService.WaitForSpeechToFinish();
                 Console.WriteLine("\n");
             }
