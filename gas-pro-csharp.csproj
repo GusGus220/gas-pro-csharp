@@ -16,6 +16,7 @@
 		<PackageReference Include="LLamaSharp.Backend.Cuda12" Version="0.27.0" />
 		<PackageReference Include="NAudio" Version="2.3.0" />
 		<PackageReference Include="PiperSharp" Version="1.0.6" />
+		<PackageReference Include="Spectre.Console" Version="0.57.2" />
 		<PackageReference Include="System.Speech" Version="10.0.10" />
 		<PackageReference Include="Vosk" Version="0.3.38" />
 	</ItemGroup>

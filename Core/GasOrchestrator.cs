@@ -2,10 +2,10 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using GasPro.Services;
+using Spectre.Console;
 
 namespace GasPro.Core
 {
-    // Estructura interna para la memoria de la conversación
     public class LocalChatMessage
     {
         public string Role { get; set; }
@@ -33,27 +33,60 @@ namespace GasPro.Core
 
         public void Initialize(string llamaModelPath, string voskModelPath)
         {
-            Console.WriteLine("Iniciando entorno GAS PRO (C# Core con PiperSharp Oficial)...");
+            // 1. Silenciamos Vosk
+            Vosk.Vosk.SetLogLevel(-1);
 
+            Console.WriteLine("Iniciando motores (ignora los textos raros de C++ que saldrán ahora)...");
+
+            // 2. Inicializamos los motores UNA SOLA VEZ con el modelo correcto
             _llamaService.Initialize(llamaModelPath);
-
-            // Usamos la voz sharvard de España (puedes cambiarla luego por otra si quieres)
             _speechService.InitializeAsync("es_ES-sharvard-medium", "models/piper").GetAwaiter().GetResult();
-
             _audioService.Initialize(voskModelPath);
 
-            Console.WriteLine("\n[SISTEMA LISTO] Habla con naturalidad de corrido (ej. 'Gas, ¿qué hora es?').");
+            // 3. ✨ EL PRE-CALENTAMIENTO (LA TRAMPA) ✨
+            // Obligamos a Llama a pensar para que escupa los logs AHORA
+            try
+            {
+                var enumerador = _llamaService.GenerateResponseStreamAsync("a").GetAsyncEnumerator();
+                enumerador.MoveNextAsync().AsTask().GetAwaiter().GetResult();
+            }
+            catch { }
+
+            // 4. ✨ EL PLUMAZO ✨ Borramos la basura de C++
+            Console.Clear();
+
+            // 🎨 5. Título Hacker en Arte ASCII
+            AnsiConsole.Write(
+                new FigletText("GAS PRO")
+                    .Centered()
+                    .Color(Color.SpringGreen3));
+
+            // 🎨 6. Panel elegante de estado de motores
+            var panelDeCarga = new Panel(
+                "Arquitectura modular C# inicializada y pre-calentada.\n\n" +
+                "🧠 [bold blue]Cerebro:[/] Llama 3 (Grafo neuronal activo)\n" +
+                "🗣️ [bold green]Voz:[/] Piper Neural (Medium predictivo)\n" +
+                "👂 [bold yellow]Escucha:[/] Vosk Offline API")
+                .Header("[bold white] Secuencia de Arranque [/]")
+                .BorderColor(Color.Cyan1)
+                .Padding(2, 1, 2, 1);
+
+            AnsiConsole.Write(panelDeCarga);
+
+            AnsiConsole.MarkupLine("\n[bold springgreen3]SISTEMA LISTO Y OPERATIVO[/] 🚀");
         }
 
         public async Task RunAsync()
         {
             while (true)
             {
-                Console.Write("\r💤 Escuchando en segundo plano...           ");
+                // 🎨 Separador visual para cada nueva iteración
+                AnsiConsole.Write(new Rule("[dim]Esperando comando de voz...[/]").RuleStyle("grey").LeftJustified());
 
                 string promptExtraido = await _audioService.ListenForPromptAsync();
 
-                Console.WriteLine($"\n🔔 ¡Activado! Usuario: {promptExtraido}");
+                // 🎨 Tu mensaje en amarillo
+                AnsiConsole.MarkupLine($"\n👤 [bold yellow]Tú:[/] {promptExtraido}");
 
                 if (promptExtraido.Contains("salir") || promptExtraido.Contains("apágate")) break;
 
@@ -81,14 +114,14 @@ namespace GasPro.Core
                     string horaFormateada = DateTime.Now.ToString("h:mm tt", new System.Globalization.CultureInfo("es-ES"))
                         .Replace("AM", "de la mañana").Replace("PM", "de la tarde");
                     string mensajeHora = $"Son las {horaFormateada}";
-                    Console.WriteLine($"GAS PRO: {mensajeHora}");
+                    AnsiConsole.MarkupLine($"🤖 [bold cyan]GAS PRO:[/] {mensajeHora}");
                     _speechService.SpeakAsync(mensajeHora);
                 }
                 else if (comando.Contains("fecha") || comando.Contains("día es hoy") || comando.Contains("dia es hoy"))
                 {
                     string fechaFormateada = DateTime.Now.ToString("dddd, d 'de' MMMM 'de' yyyy", new System.Globalization.CultureInfo("es-ES"));
                     string mensajeFecha = $"Hoy es {fechaFormateada}";
-                    Console.WriteLine($"GAS PRO: {mensajeFecha}");
+                    AnsiConsole.MarkupLine($"🤖 [bold cyan]GAS PRO:[/] {mensajeFecha}");
                     _speechService.SpeakAsync(mensajeFecha);
                 }
                 else if (comando.Contains("haz clic") || comando.Contains("haz click"))
@@ -148,13 +181,12 @@ namespace GasPro.Core
                 if (esComandoDeSistema)
                 {
                     _speechService.WaitForSpeechToFinish();
+                    Console.WriteLine("\n");
                     continue;
                 }
                 // ------------------------------------------------
 
                 // --- CONSTRUCCIÓN DEL PROMPT CON MEMORIA ---
-                Console.Write("GAS PRO: ");
-
                 string systemPrompt = "<|start_header_id|>system<|end_header_id|>\n\nEres GAS PRO, asistente de IA avanzado. Ubicación: Piura, Perú. Respuestas concisas, precisas y basadas en hechos.<|eot_id|>";
                 string promptFinal = systemPrompt;
 
@@ -171,6 +203,10 @@ namespace GasPro.Core
                 string respuestaCompleta = "";
                 string bufferOracion = "";
 
+                // 🎨 Etiqueta de la IA
+                AnsiConsole.Markup("🤖 [bold cyan]GAS PRO:[/] ");
+                Console.ForegroundColor = ConsoleColor.Cyan;
+
                 // 3. Pensar y Hablar en Streaming Inteligente (Puntuación)
                 await foreach (var text in _llamaService.GenerateResponseStreamAsync(promptFinal))
                 {
@@ -183,18 +219,18 @@ namespace GasPro.Core
                         if (!string.IsNullOrWhiteSpace(bufferOracion))
                         {
                             _speechService.SpeakAsync(bufferOracion);
-                            bufferOracion = ""; // Resetea para la siguiente oración
+                            bufferOracion = "";
                         }
                     }
                 }
 
-                // Reproduce lo que haya quedado al final
+                Console.ResetColor();
+
                 if (!string.IsNullOrWhiteSpace(bufferOracion))
                 {
                     _speechService.SpeakAsync(bufferOracion);
                 }
 
-                // Guardar en la memoria
                 _chatHistory.Add(new LocalChatMessage { Role = "user", Content = promptExtraido });
                 _chatHistory.Add(new LocalChatMessage { Role = "assistant", Content = respuestaCompleta.Trim() });
 
