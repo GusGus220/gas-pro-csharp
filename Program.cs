@@ -1,6 +1,7 @@
 ﻿using System.Threading.Tasks;
 using GasPro.Core;
 
+//Moving everything to a windows app to get a better frontend and user experience. The console app is just a test for now.
 class Program
 {
     static async Task Main(string[] args)
